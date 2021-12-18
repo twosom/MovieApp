@@ -13,7 +13,7 @@ class ViewController: UIViewController {
 
     var movieModel: MovieModel?
 
-    let defaultAPIUrl = "https://itunes.apple.com/search"
+    let networkLayer = NetworkLayer()
 
     @IBOutlet
     var searchBar: UISearchBar!
@@ -31,7 +31,6 @@ class ViewController: UIViewController {
         searchBar.delegate = self
     }
 
-
     /**
      URL 주소로 사진을 불러옵니다.
      - Parameters:
@@ -39,80 +38,31 @@ class ViewController: UIViewController {
        - completion: 콜백
      */
     func loadImage(_ url: String, completion: @escaping (UIImage?) -> Void) {
-        let sessionConfig = URLSessionConfiguration.default
-        let session = URLSession(configuration: sessionConfig)
-
-        guard let url: URL = URL(string: url) else {
+        networkLayer.request(type: .LOAD_IMAGE(urlString: url)) { data, response, error in
+            completion(UIImage(data: data))
             return
         }
-
-        var request: URLRequest = URLRequest(url: url)
-        request.httpMethod = "GET"
-
-        session.dataTask(with: request) { data, response, error in
-                    guard let response = response as? HTTPURLResponse else {
-                        return
-                    }
-
-                    print("###HTTP STATUS CODE = \(response.statusCode)")
-
-                    guard let data = data else {
-                        return
-                    }
-
-                    completion(UIImage(data: data))
-                    return
-                }
-                .resume()
-
-        session.finishTasksAndInvalidate()
         completion(nil)
-
     }
 
-    //TODO NETWORK 호출
     func requestMovieAPI(keyword: String) {
-        let sessionConfig: URLSessionConfiguration = URLSessionConfiguration.default
-        let session: URLSession = URLSession(configuration: sessionConfig)
-        guard var urlComponents: URLComponents = URLComponents(string: defaultAPIUrl) else {
-            return
-        }
-
         let queryItems = [
             URLQueryItem(name: "term", value: keyword),
             URLQueryItem(name: "country", value: "KR"),
             URLQueryItem(name: "media", value: "movie")
         ]
-        urlComponents.queryItems = queryItems
 
-        guard let url: URL = urlComponents.url else {
-            return
-        }
-        var request: URLRequest = URLRequest(url: url)
-        request.httpMethod = "GET"
+        networkLayer.request(type: .SEARCH_MOVIE(queries: queryItems)) { data, response, error in
+            do {
+                let movieModel: MovieModel = try JSONDecoder().decode(MovieModel.self, from: data)
+                self.movieModel = movieModel
 
-        session.dataTask(with: request) { data, response, error in
-                    guard let response: HTTPURLResponse = response as? HTTPURLResponse else {
-                        return
-                    }
-                    print("###HTTP STATUS CODE = \(response.statusCode)")
-
-                    guard let data: Data = data else {
-                        return
-                    }
-                    do {
-                        let movieModel: MovieModel = try JSONDecoder().decode(MovieModel.self, from: data)
-                        self.movieModel = movieModel
-
-                    } catch {
-                        print(error)
-                    }
+                DispatchQueue.main.async {
+                    self.movieTableView.reloadData()
                 }
-                .resume()
-        session.finishTasksAndInvalidate()
-
-        DispatchQueue.main.async {
-            self.movieTableView.reloadData()
+            } catch {
+                print(error)
+            }
         }
     }
 
