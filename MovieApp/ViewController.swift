@@ -29,7 +29,6 @@ class ViewController: UIViewController {
         movieTableView.delegate = self
         movieTableView.dataSource = self
         searchBar.delegate = self
-        requestMovieAPI()
     }
 
 
@@ -72,7 +71,7 @@ class ViewController: UIViewController {
     }
 
     //TODO NETWORK 호출
-    func requestMovieAPI() {
+    func requestMovieAPI(keyword: String) {
         let sessionConfig: URLSessionConfiguration = URLSessionConfiguration.default
         let session: URLSession = URLSession(configuration: sessionConfig)
         guard var urlComponents: URLComponents = URLComponents(string: defaultAPIUrl) else {
@@ -80,7 +79,7 @@ class ViewController: UIViewController {
         }
 
         let queryItems = [
-            URLQueryItem(name: "term", value: "marvel"),
+            URLQueryItem(name: "term", value: keyword),
             URLQueryItem(name: "country", value: "KR"),
             URLQueryItem(name: "media", value: "movie")
         ]
@@ -135,7 +134,7 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource {
             return MovieCell()
         }
 
-        guard let movie: Result = movieModel?.results[indexPath.row] else {
+        guard let movie: MovieResult = movieModel?.results[indexPath.row] else {
             return movieCell
         }
 
@@ -183,9 +182,18 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource {
         return movieCell
     }
 
-
     public func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        guard let detailVC: DetailViewController = UIStoryboard(name: "DetailViewController", bundle: nil)
+                .instantiateViewController(identifier: "DetailViewController") as? DetailViewController else {
+            return
+        }
+
+        guard let movie: MovieResult = movieModel?.results[indexPath.row] else {
+            return
+        }
+        detailVC.movieResult = movie
+        present(detailVC, animated: true)
     }
 
     public func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
@@ -201,7 +209,7 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource {
 extension ViewController: UISearchBarDelegate {
 
     public func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        print(searchBar)
+        requestMovieAPI(keyword: searchBar.text ?? "")
     }
 }
 

@@ -21,23 +21,23 @@ class MovieCell: UITableViewCell {
             dateLabel.font = .systemFont(ofSize: 17, weight: .ultraLight)
         }
     }
-    
+
     @IBOutlet
     var descriptionLabel: UILabel! {
         didSet {
             descriptionLabel.font = .systemFont(ofSize: 16, weight: .light)
         }
     }
-    
+
     @IBOutlet
     var priceLabel: UILabel! {
         didSet {
             priceLabel.font = .systemFont(ofSize: 14, weight: .bold)
         }
     }
-    
+
     @IBOutlet
     var movieImageView: UIImageView!
-    
-    
+
+
 }
