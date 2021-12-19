@@ -53,18 +53,19 @@ class DetailViewController: UIViewController {
         guard let urlString: String = movieResult?.previewUrl else {
             return
         }
-
+        player?.pause()
         makePlayerAndPlay(urlString: urlString)
     }
 
     func makePlayerAndPlay(urlString: String) {
-        guard let url = URL(string: urlString) else {
-            return
-        }
+        guard let url = URL(string: urlString) else {return}
+
         player = AVPlayer(url: url)
-        let playerLayer = AVPlayerLayer(player: player)
+        let playerLayer: AVPlayerLayer = AVPlayerLayer(player: player)
+
         movieContainer.layer.addSublayer(playerLayer)
         playerLayer.frame = movieContainer.bounds
+
         player?.play()
     }
 

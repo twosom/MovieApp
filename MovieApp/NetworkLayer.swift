@@ -4,36 +4,36 @@
 
 import UIKit
 
-enum MovieAPIType {
-    case LOAD_IMAGE(urlString: String)
-    case SEARCH_MOVIE(queries: [URLQueryItem])
+
+enum MovieRequestType {
+    case MOVIE_SEARCH(keyword: String)
+    case LOAD_IMAGE(imageUrl: String)
 }
 
-enum MovieAPIError: Error {
-    case BAD_URL
-
+enum MovieError: Error {
+    case URL_NOT_FOUND
 }
 
 class NetworkLayer {
-    private let defaultAPIUrl = "https://itunes.apple.com/search"
+
+    let configuration = URLSessionConfiguration.default
+
+    let defaultUrl: String = "https://itunes.apple.com/search"
+
     typealias NetworkCompletion = (Data, HTTPURLResponse, Error?) -> Void
-    private let sessionConfig = URLSessionConfiguration.default
 
 
-    /**
-     1. only url
-     2. url + param
-     */
-    func request(type: MovieAPIType, completion: @escaping NetworkCompletion) {
-        let session = URLSession(configuration: sessionConfig)
-
+    func request(type: MovieRequestType, completion: @escaping NetworkCompletion) {
         do {
-            let request: URLRequest = try buildRequest(type: type)
+            let session = URLSession(configuration: configuration)
+            let request = try buildRequest(type: type)
             session.dataTask(with: request) { data, response, error in
                 guard let response = response as? HTTPURLResponse, let data = data else {
                     return
                 }
-                print("###HTTP STATUS CODE = \(response.statusCode)")
+
+                print("### HTTP STATUS = \(response.statusCode)")
+
                 completion(data, response, error)
             }.resume()
 
@@ -41,26 +41,37 @@ class NetworkLayer {
         } catch {
             print(error)
         }
+
+
     }
 
 
-    private func buildRequest(type: MovieAPIType) throws -> URLRequest {
+    private func buildRequest(type: MovieRequestType) throws -> URLRequest {
         switch type {
-        case .LOAD_IMAGE(urlString: let urlString):
-            guard let url = URL(string: urlString) else {
-                throw MovieAPIError.BAD_URL
+        case .MOVIE_SEARCH(keyword: let keywrod):
+            guard var urlComponents = URLComponents(string: self.defaultUrl) else {
+                throw MovieError.URL_NOT_FOUND
             }
-            var request: URLRequest = URLRequest(url: url)
+
+            let queryItems = [
+                URLQueryItem(name: "country", value: "KR"),
+                URLQueryItem(name: "media", value: "movie"),
+                URLQueryItem(name: "term", value: keywrod)
+            ]
+
+            urlComponents.queryItems = queryItems
+
+            guard let url = urlComponents.url else {
+                throw MovieError.URL_NOT_FOUND
+            }
+
+            var request = URLRequest(url: url)
             request.httpMethod = "GET"
             return request
+        case .LOAD_IMAGE(imageUrl: let imageUrl):
 
-        case .SEARCH_MOVIE(queries: let queries):
-            guard var components = URLComponents(string: defaultAPIUrl) else {
-                throw MovieAPIError.BAD_URL
-            }
-            components.queryItems = queries
-            guard let url = components.url else {
-                throw MovieAPIError.BAD_URL
+            guard let url = URL(string: imageUrl) else {
+                throw MovieError.URL_NOT_FOUND
             }
 
             var request = URLRequest(url: url)
@@ -68,5 +79,6 @@ class NetworkLayer {
             return request
         }
     }
+
 
 }

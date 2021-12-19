@@ -15,6 +15,12 @@ class ViewController: UIViewController {
 
     let networkLayer = NetworkLayer()
 
+    let decoder: JSONDecoder = JSONDecoder()
+
+    let isoFormatter: ISO8601DateFormatter = ISO8601DateFormatter()
+
+    let koreanFormatter: DateFormatter = DateFormatter()
+
     @IBOutlet
     var searchBar: UISearchBar!
 
@@ -25,38 +31,17 @@ class ViewController: UIViewController {
     override
     func viewDidLoad() {
         super.viewDidLoad()
-
+        koreanFormatter.dateFormat = "yyyy년 MM월 dd일"
         movieTableView.delegate = self
         movieTableView.dataSource = self
         searchBar.delegate = self
     }
 
-    /**
-     URL 주소로 사진을 불러옵니다.
-     - Parameters:
-       - url: 이미지 URL
-       - completion: 콜백
-     */
-    func loadImage(_ url: String, completion: @escaping (UIImage?) -> Void) {
-        networkLayer.request(type: .LOAD_IMAGE(urlString: url)) { data, response, error in
-            completion(UIImage(data: data))
-            return
-        }
-        completion(nil)
-    }
 
-    func requestMovieAPI(keyword: String) {
-        let queryItems = [
-            URLQueryItem(name: "term", value: keyword),
-            URLQueryItem(name: "country", value: "KR"),
-            URLQueryItem(name: "media", value: "movie")
-        ]
-
-        networkLayer.request(type: .SEARCH_MOVIE(queries: queryItems)) { data, response, error in
+    func searchMovie(keyword: String) {
+        networkLayer.request(type: .MOVIE_SEARCH(keyword: keyword)) { data, response, error in
             do {
-                let movieModel: MovieModel = try JSONDecoder().decode(MovieModel.self, from: data)
-                self.movieModel = movieModel
-
+                self.movieModel = try self.decoder.decode(MovieModel.self, from: data)
                 DispatchQueue.main.async {
                     self.movieTableView.reloadData()
                 }
@@ -66,6 +51,13 @@ class ViewController: UIViewController {
         }
     }
 
+    func loadImage(imageUrl: String, completion: @escaping (UIImage?) -> Void) {
+        networkLayer.request(type: .LOAD_IMAGE(imageUrl: imageUrl)) { data, response, error in
+            completion(UIImage(data: data))
+            return
+        }
+        completion(nil)
+    }
 
 }
 
@@ -80,51 +72,40 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource {
 
     func tableView(_ tableView: UITableView,
                    cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        guard let movieCell: MovieCell = tableView.dequeueReusableCell(withIdentifier: "MovieCell", for: indexPath) as? MovieCell else {
+
+        guard let movieCell = tableView.dequeueReusableCell(withIdentifier: "MovieCell", for: indexPath) as? MovieCell else {
             return MovieCell()
         }
 
-        guard let movie: MovieResult = movieModel?.results[indexPath.row] else {
+        guard let movie = movieModel?.results[indexPath.row] else {
             return movieCell
         }
 
-        guard let title: String = movie.title else {
-            return movieCell
+        if let title = movie.title {
+            movieCell.titleLabel.text = title
         }
-        movieCell.titleLabel.text = title
 
-        guard let imageUrl: String = movie.imageUrl else {
-            return movieCell
+        if let description = movie.description {
+            movieCell.descriptionLabel.text = description
         }
-        //TODO Load Image From URL
 
-        loadImage(imageUrl) { image in
-            DispatchQueue.main.async {
-                movieCell.movieImageView.image = image
+        if let imageUrl = movie.imageUrl {
+            loadImage(imageUrl: imageUrl) { image in
+                DispatchQueue.main.async {
+                    movieCell.imageView?.image = image
+                }
             }
         }
 
-        guard let description: String = movie.description else {
-            return movieCell
+        if let price = movie.price, let currency = movie.currency {
+            movieCell.priceLabel.text = "\(price) \(currency)"
         }
 
-        movieCell.descriptionLabel.text = description
+        if let releaseDate = movie.releaseDate {
+            guard let date: Date = isoFormatter.date(from: releaseDate) else {
+                return movieCell
+            }
 
-        guard let price = movie.price, let currency = movie.currency else {
-            return movieCell
-        }
-
-        movieCell.priceLabel.text = "\(price) \(currency)"
-
-        guard let releaseDate = movie.releaseDate else {
-            return movieCell
-        }
-
-
-        let isoFormatter = ISO8601DateFormatter()
-        if let date = isoFormatter.date(from: releaseDate) {
-            let koreanFormatter = DateFormatter()
-            koreanFormatter.dateFormat = "yyyy년 MM월 dd일"
             movieCell.dateLabel.text = koreanFormatter.string(from: date)
         }
 
@@ -132,25 +113,33 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource {
         return movieCell
     }
 
-    public func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    /**
+     선택 되었을 경우
+     - Parameters:
+       - tableView:
+       - indexPath:
+     */
+    public func tableView(_ tableView: UITableView,
+                          didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard let detailVC: DetailViewController = UIStoryboard(name: "DetailViewController", bundle: nil)
-                .instantiateViewController(identifier: "DetailViewController") as? DetailViewController else {
+
+        guard let detailVC = UIStoryboard(name: "DetailViewController", bundle: nil)
+                .instantiateViewController(identifier: "DetailViewController") as? DetailViewController, let movie = movieModel?.results[indexPath.row] else {
             return
         }
 
-        guard let movie: MovieResult = movieModel?.results[indexPath.row] else {
-            return
-        }
+
         detailVC.movieResult = movie
         present(detailVC, animated: true)
     }
 
-    public func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+    public func tableView(_ tableView: UITableView,
+                          heightForRowAt indexPath: IndexPath) -> CGFloat {
         UITableView.automaticDimension
     }
 
-    public func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
+    public func tableView(_ tableView: UITableView,
+                          estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
         UITableView.automaticDimension
     }
 }
@@ -159,7 +148,13 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource {
 extension ViewController: UISearchBarDelegate {
 
     public func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        requestMovieAPI(keyword: searchBar.text ?? "")
+        guard let keyword: String = searchBar.text else {
+            return
+        }
+        print(keyword)
+
+        searchMovie(keyword: keyword)
+        view.endEditing(true)
     }
 }
 
